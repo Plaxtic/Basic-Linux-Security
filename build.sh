@@ -23,10 +23,11 @@ function build() {
     gcc -w -o "allsec/$BASE/vuln" $1 
 }
 
-build easy.c
-build normal.c
+build src/easy.c
+build src/normal.c
 
 # extra allsec binaries to show its possible (no need to disable warnings!)
-gcc -o "allsec/server/vulnserv" server.c
-gcc -o "allsec/forker/vulnfork" forker.c
+gcc -o "allsec/basic/basic" src/basic.c
+gcc -o "allsec/server/vulnserv" src/server.c
+gcc -o "allsec/fork/vulnfork" src/forker.c
 
