@@ -1,0 +1,19 @@
+#!/bin/sh
+
+BLUE="\033[1;34m"
+NEUT="\033[0m"
+
+printf "$BLUE
+Remember to turn on aslr
+$NEUT
+../../aslr.sh on"
+read
+../../aslr.sh on
+
+
+printf "$BLUE
+I haven't solved this one yet, let me know if you do
+Probably worth skipping to the easier ones in allsec (basic, fork, server) as the rest of this are probably impossible
+"
+read
+

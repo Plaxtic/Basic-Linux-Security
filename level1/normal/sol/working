@@ -1,5 +1,13 @@
 #!/bin/sh
 
+printf "\033[1;34m
+This solution is incomplete as I can't get stack execution working
+It can be completed using the same method as level2, but you should try to use stack execution
+Please just read the bash file for hints
+(enter to quit)"
+read
+exit 0
+
 ## I know from last time the buffer is 120 byte
 ## double check
 cyclic 121 | ./vuln                  # yep

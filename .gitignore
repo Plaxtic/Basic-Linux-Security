@@ -1,0 +1,8 @@
+
+## ignore all binaries
+**/easy/vuln
+**/normal/vuln
+
+allsec/basic/basic
+allsec/fork/vulnfork
+allsec/server/vulnserv

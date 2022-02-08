@@ -1,8 +1,22 @@
 #!/bin/sh
 
-## so we can't execute the stack anymore, shouldnt change much! 
-python3 ../../level1/easy/sol/exploit.py
-# $
+BLUE="\033[1;34m"
+NEUT="\033[0m"
 
-## bit pointless :)
+printf "$BLUE
+Remeber to turn off aslr (requires password)
+$NEUT 
+../../aslr.sh off"
+read
+../../aslr.sh off
+
+printf "$BLUE
+So we can't execute the stack anymore, this shouldnt change much! 
+Lets try the previous solution
+(your addressing may be different so please modify the exploit appropriately)
+$NEUT
+python3 ../../level1/easy/sol/exploit.py"
+read
+python3 ../../level1/easy/sol/exploit.py
+
 

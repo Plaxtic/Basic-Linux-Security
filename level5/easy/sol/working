@@ -1,0 +1,20 @@
+#!/bin/sh
+
+BLUE="\033[1;34m"
+NEUT="\033[0m"
+
+printf "$BLUE
+Remember to turn on aslr
+$NEUT
+../../aslr.sh on"
+read
+../../aslr.sh on
+
+
+printf "$BLUE
+Relro has no effect for this
+Identical to the previous solution
+$NEUT
+../../level4/easy/sol/exploit.py"
+read
+../../level4/easy/sol/exploit.py

