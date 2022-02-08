@@ -1,0 +1,8 @@
+#!/bin/sh
+
+## so we can't execute the stack anymore, shouldnt change much! 
+python3 ../../level1/easy/sol/exploit.py
+# $
+
+## bit pointless :)
+
