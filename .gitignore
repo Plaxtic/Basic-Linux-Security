@@ -4,5 +4,6 @@
 **/normal/vuln
 
 allsec/basic/basic
+allsec/leak/leak
 allsec/fork/vulnfork
 allsec/server/vulnserv

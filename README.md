@@ -1,6 +1,6 @@
 # Basic-Linux-Security
 
-Several Basic Ctf Binarys intended to show how the basic Linux/gcc
+Several Basic Ctf binaries intended to show how the basic Linux/gcc
 security protections (such as NX, ASLR, PIE, Relro, and stack canaries) 
 may be bypassed.
 
@@ -8,12 +8,12 @@ Run:
 ```
 ./build.sh
 ```
-To create the binaries.
+To create the binaries. (try not to look at the source code initially)
 
 Each level contains the same two binaries with increasing layers of 
 security. The sol folder contains my solution (if I have solved it)
 along with rough working notes. The working notes are also executable
-tutorials, to execute these or the solutions please install pwntool 
+tutorials, to execute these or the solutions please install pwntools
 (you will probably need it anyway)
 ```
 pip install pwn
@@ -27,6 +27,6 @@ levels, and back on for the others
 
 allsec contains binaries with all basic protections enabled. As the
 simple buffer overflow appears to be impossible here, I have included
-three more complex, exploitable binaries. 
+three more complex, exploitable binaries. The best stuff is in allsec.
 
 (more to come)

