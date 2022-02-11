@@ -12,7 +12,7 @@ Try not to look at the source code initially. The goal in every case is
 to pop a shell.
 
 Each level contains the same two binaries with increasing layers of 
-security. The sol folder contains my solution (if I have solved it)
+security. The sol folder contains my solution, exploit.py, (if I have solved it)
 along with rough working notes. The working notes are also executable
 tutorials, to execute these or the solutions please install pwntools
 (you will probably need it anyway).
